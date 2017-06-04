@@ -14,28 +14,15 @@
 
 #define OFFSET 0.001
 
-const char* JSONPATH;
-
-using namespace snowgoose::expression;
+using namespace expression;
 using namespace snowgoose;
-using namespace OPTITEST;
 
 class IntervalTest : public ::testing::Test {
- protected:
+ public:
 
   IntervalTest() : dfr(JSONPATH)
   {
   }
-
-  virtual void SetUp() 
-  {
-		
-  }
- 
-  virtual void TearDown() 
-  {
-  }
-
 
 	std::vector<double> getRandomPoint(const std::string& key, int customDim = 0)
 	{
@@ -75,8 +62,13 @@ class IntervalTest : public ::testing::Test {
 		ASSERT_GE(funcValue, lowBound);
 		ASSERT_LE(funcValue, upperBound);
 	}
+	static void ResetPath(const char* path) {JSONPATH = path;}
+ private:
 	DescFuncReader dfr;
+	static const char* JSONPATH;
 };
+
+const char* IntervalTest::JSONPATH;
 
 TEST_F(IntervalTest, TestIntervalAckley1)
 {

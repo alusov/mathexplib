@@ -16,7 +16,6 @@
 
 #include <iostream> 
 #include <limits>
-#define _USE_MATH_DEFINES
 #include <cmath>
 #include <exception>
 #include <memory>
@@ -24,7 +23,6 @@
 #include <limits>
 #include "enums.h"
 
-namespace snowgoose {
   namespace interval {
 
 	template<class T> class Interval;
@@ -687,6 +685,6 @@ namespace snowgoose {
 			return Interval<T>(lb, rb);
 		}       
     }
-}
+
 
 #endif /* INTERVAL__HPP */

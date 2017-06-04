@@ -7,9 +7,8 @@
 #include <algorithm>
 #include "expression/expr.hpp"
 
-namespace OPTITEST {
 
-using namespace snowgoose::expression;
+using namespace expression;
 
 	template <class T>
 	Expr<T> Ackley1(int N)
@@ -1458,5 +1457,5 @@ using namespace snowgoose::expression;
 		return result;
 	}
 
-}
+
 #endif

@@ -8,9 +8,8 @@
 #include "interval/enums.h"
 #include <cmath>
 
-using namespace snowgoose::interval;
+using namespace interval;
 
-namespace snowgoose {
 namespace expression {
 	/**
 	* Base class for algorithms
@@ -186,6 +185,6 @@ namespace expression {
 		}
 	};
 }
-}
+
 
 #endif /* ALGORITHM__HPP */

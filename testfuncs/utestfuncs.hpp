@@ -13,13 +13,12 @@
 #define EPSILON 0.001
 #define OUTEXPR false
 
-const char* JSONPATH;
 
-using namespace snowgoose::expression;
-using namespace OPTITEST;
+
+using namespace expression;
 
 class FuncsTest : public ::testing::Test {
- protected:
+ public:
 	FuncsTest() : dfr(JSONPATH)
 	{
 	}
@@ -32,8 +31,14 @@ class FuncsTest : public ::testing::Test {
 		double epsilon = EPSILON;
 		ASSERT_NEAR(expected, globMinY, epsilon);
 	}
+	static void ResetPath(const char* path) {JSONPATH = path;}
+ private:
 	DescFuncReader dfr;
+	static const char* JSONPATH;
+	
 };
+
+const char* FuncsTest::JSONPATH;
 	 
 TEST_F(FuncsTest, TestAckley1)
 {
@@ -53,14 +58,6 @@ TEST_F(FuncsTest, TestAckley3)
 {
 	Test(K.Ackley3, Ackley3<double>());
 }
-
-/*this test is for full interval library version only*/
-/*
-TEST_F(FuncsTest, TestAckley4)
-{
-	Test(K.Ackley4, Ackley4<double>());
-}
-*/
 
 TEST_F(FuncsTest, TestAdjiman)
 {
