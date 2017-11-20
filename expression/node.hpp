@@ -5,12 +5,20 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <unordered_map>
+
+
 #include "algorithm.hpp"
 #include "interval/interval_air.hpp"
 #include "interval/enums.h"
 #include "expr.hpp"
+#include "utils.h"
+//#include "mapiterator.hpp"
 
 
+
+
+namespace snowgoose {
 namespace expression {
 
 	template<class T> class Node;
@@ -18,6 +26,7 @@ namespace expression {
 	template<typename T> using ptrNode = std::shared_ptr<Node<T>>;
 	template<typename T> using ptrCNode = std::shared_ptr<ConditionNode<T>>;
 	template<typename T> using vPtrNode = std::vector<ptrNode<T>>;
+	class MapIterator;
 
 	template<class T>
 	class Node
@@ -25,9 +34,20 @@ namespace expression {
 	public:
 		Node(const vPtrNode<T> &childs) : m_childs(childs) {}
 		Node() {}
-		virtual T calc(const std::vector<T> &v, const Algorithm<T> &) = 0;
+		virtual T calc(const Algorithm<T> &, MapIterator &) const = 0;
 		friend std::ostream& operator<<(std::ostream & out, const Node<T>& v) { return v.prn(out);}
 		virtual std::ostream& prn(std::ostream & out) const = 0;
+        virtual bool IsVar() const {return false;}
+        bool IsVarInTree() const
+        {
+            if(IsVar()) 
+                return true;
+            else
+                for(auto &node : m_childs)
+                    if(node->IsVarInTree())
+                        return true;
+            return false;
+        }
 	protected:
 		vPtrNode<T> m_childs;
 	};	
@@ -36,11 +56,13 @@ namespace expression {
 	class Var : public Node<T>
 	{
 	private:
-		int index;
+		const int index;
 	public:
 		Var(int i) : index(i) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> &alg) { return v[index]; };
+		T calc(const Algorithm<T> &alg, MapIterator &map_iterator) const { return alg.CreateVar(index); };
 		std::ostream& prn(std::ostream & out) const { return out << "x[" << index << "]"; };
+        	bool IsVar() const { return true; }
+		int getIndex() { return index; }
 	};
 
 
@@ -48,11 +70,12 @@ namespace expression {
 	class Const : public Node<T>
 	{
 	private:
-		T m_const;
+		const double m_const;
 	public:
 		Const(double value) : m_const(value) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> &) { return m_const; }
+		T calc(const Algorithm<T> &alg, MapIterator &map_iterator) const { return alg.CreateConst(m_const); }
 		std::ostream& prn(std::ostream & out) const { return out << m_const; }
+		double getConst() { return m_const; }
 	};
 
 	template <class T>
@@ -60,7 +83,7 @@ namespace expression {
 	{
 	public:
 		Plus(const ptrNode<T> &left, const ptrNode<T> &right) : Node<T>({ left, right }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.Plus(this->m_childs[0]->calc(v, alg), this->m_childs[1]->calc(v, alg)); };
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.Plus(this->m_childs[0]->calc(alg, map_iterator), this->m_childs[1]->calc(alg, map_iterator)); };
 		std::ostream& prn(std::ostream & out) const { return out << "(" << *this->m_childs[0] << " + " << *this->m_childs[1] << ")"; }
 	};
 
@@ -69,7 +92,7 @@ namespace expression {
 	{
 	public:
 		Minus(const ptrNode<T> &left, const ptrNode<T> &right) : Node<T>({ left, right }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.Minus(this->m_childs[0]->calc(v, alg), this->m_childs[1]->calc(v, alg)); }
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.Minus(this->m_childs[0]->calc(alg, map_iterator), this->m_childs[1]->calc(alg, map_iterator)); }
 		std::ostream& prn(std::ostream & out) const { return out << "(" << *this->m_childs[0] << " - " << *this->m_childs[1] << ")"; }
 	};
 
@@ -78,7 +101,7 @@ namespace expression {
 	{
 	public:
 		Mul(const ptrNode<T> &left,const ptrNode<T> &right) : Node<T>({ left, right }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.Mul(this->m_childs[0]->calc(v, alg), this->m_childs[1]->calc(v, alg)); }
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.Mul(this->m_childs[0]->calc(alg, map_iterator), this->m_childs[1]->calc(alg, map_iterator)); }
 		std::ostream& prn(std::ostream & out) const { return out << *this->m_childs[0] << " * " << *this->m_childs[1]; }
 	};
 
@@ -87,7 +110,7 @@ namespace expression {
 	{
 	public:
 		Div(const ptrNode<T> &left, const ptrNode<T> &right) : Node<T>({ left, right }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.Div(this->m_childs[0]->calc(v, alg), this->m_childs[1]->calc(v, alg)); };
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.Div(this->m_childs[0]->calc(alg, map_iterator), this->m_childs[1]->calc(alg, map_iterator)); };
 		std::ostream& prn(std::ostream & out) const { return out << "(" << *this->m_childs[0] << "/" << *this->m_childs[1] << ")"; }
 	};
 
@@ -96,7 +119,7 @@ namespace expression {
 	{
 	public:
 		Sin(const ptrNode<T> &node) : Node<T>({node}) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.Sin(this->m_childs[0]->calc(v, alg)); };
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.Sin(this->m_childs[0]->calc(alg, map_iterator)); };
 		std::ostream& prn(std::ostream & out) const { return out << "sin(" << *this->m_childs[0] << ")"; }
 	};
 
@@ -105,7 +128,7 @@ namespace expression {
 	{
 	public:
 		Cos(const ptrNode<T> &node) : Node<T>({ node }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.Cos(this->m_childs[0]->calc(v, alg)); };
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.Cos(this->m_childs[0]->calc(alg, map_iterator)); };
 		std::ostream& prn(std::ostream & out) const { return out << "cos(" << *this->m_childs[0] << ")"; }
 	};
 
@@ -114,7 +137,7 @@ namespace expression {
 	{
 	public:
 		Tg(const ptrNode<T> &node) : Node<T>({ node }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.Tan(this->m_childs[0]->calc(v, alg)); };
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.Tan(this->m_childs[0]->calc(alg, map_iterator)); };
 		std::ostream& prn(std::ostream & out) const { return out << "tg(" << *this->m_childs[0] << ")"; }
 	};
 
@@ -123,7 +146,7 @@ namespace expression {
 	{
 	public:
 		Ctg(const ptrNode<T> &node) : Node<T>({ node }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.Ctg(this->m_childs[0]->calc(v, alg)); };
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.Ctg(this->m_childs[0]->calc(alg, map_iterator)); };
 		std::ostream& prn(std::ostream & out) const { return out << "ctg(" << *this->m_childs[0] << ")"; }
 	};
 
@@ -132,7 +155,7 @@ namespace expression {
 	{
 	public:
 		ArcCos(const ptrNode<T> &node) : Node<T>({ node }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.ArcCos(this->m_childs[0]->calc(v, alg)); };
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.ArcCos(this->m_childs[0]->calc(alg, map_iterator)); };
 		std::ostream& prn(std::ostream & out) const { return out << "acos(" << *this->m_childs[0] << ")"; }
 	};
 
@@ -141,7 +164,7 @@ namespace expression {
 	{
 	public:
 		ArcSin(const ptrNode<T> &node) : Node<T>({ node }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.ArcSin(this->m_childs[0]->calc(v, alg)); };
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.ArcSin(this->m_childs[0]->calc(alg, map_iterator)); };
 		std::ostream& prn(std::ostream & out) const { return out << "asin(" << *this->m_childs[0] << ")"; }
 	};
 
@@ -150,7 +173,7 @@ namespace expression {
 	{
 	public:
 		ArcTg(const ptrNode<T> &node) : Node<T>({ node }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.ArcTan(this->m_childs[0]->calc(v, alg)); };
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.ArcTan(this->m_childs[0]->calc(alg, map_iterator)); };
 		std::ostream& prn(std::ostream & out) const { return out << "atg(" << *this->m_childs[0] << ")"; }
 	};
 
@@ -159,7 +182,7 @@ namespace expression {
 	{
 	public:
 		ArcCtg(const ptrNode<T> &node) : Node<T>({ node }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.ArcCtg(this->m_childs[0]->calc(v, alg)); };
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.ArcCtg(this->m_childs[0]->calc(alg, map_iterator)); };
 		std::ostream& prn(std::ostream & out) const { return out << "actg(" << *this->m_childs[0] << ")"; }
 	};
 
@@ -168,7 +191,7 @@ namespace expression {
 	{
 	public:
 		Exp(const ptrNode<T> &node) : Node<T>({ node }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.Exp(this->m_childs[0]->calc(v, alg)); };
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.Exp(this->m_childs[0]->calc(alg, map_iterator)); };
 		std::ostream& prn(std::ostream & out) const { return out << "exp(" << *this->m_childs[0] << ")"; }
 	};
 
@@ -177,7 +200,7 @@ namespace expression {
 	{
 	public:
 		Sqrt(const ptrNode<T> &node) : Node<T>({ node }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.Sqrt(this->m_childs[0]->calc(v, alg)); };
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.Sqrt(this->m_childs[0]->calc(alg, map_iterator)); };
 		std::ostream& prn(std::ostream & out) const { return out << "sqrt(" << *this->m_childs[0] << ")"; }
 	};
 
@@ -186,7 +209,7 @@ namespace expression {
 	{
 	public:
 		Sqr(const ptrNode<T> &node) : Node<T>({ node }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.Sqr(this->m_childs[0]->calc(v, alg)); };
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.Sqr(this->m_childs[0]->calc(alg, map_iterator)); };
 		std::ostream& prn(std::ostream & out) const { return out << "sqr(" << *this->m_childs[0] << ")"; }
 	};
 
@@ -194,11 +217,11 @@ namespace expression {
 	class PowInt : public Node<T>
 	{
 	private:
-		int exponent;
+		const int exponent;
 	public:
 		PowInt(const ptrNode<T> &node, int exp) : Node<T>({ node }), exponent(exp) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { 
-			return alg.Pow(this->m_childs[0]->calc(v, alg), exponent); 
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { 
+			return alg.Pow(this->m_childs[0]->calc(alg, map_iterator), exponent); 
 		};
 		std::ostream& prn(std::ostream & out) const { return out << "pow(" << *this->m_childs[0] << "," << exponent << ")"; }
 	};
@@ -207,11 +230,11 @@ namespace expression {
 	class Pow : public Node<T>
 	{
 	private:
-		T exponent;
+		const double exponent;
 	public:
 		Pow(const ptrNode<T> &node, double exp) : Node<T>({ node }), exponent(exp) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) {
-			return alg.Pow(this->m_childs[0]->calc(v, alg), exponent);
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const {
+			return alg.PowDouble(this->m_childs[0]->calc(alg, map_iterator), exponent);
 		};
 		std::ostream& prn(std::ostream & out) const { return out << "pow(" << *this->m_childs[0] << "," << exponent << ")"; }
 	};
@@ -221,7 +244,11 @@ namespace expression {
 	{
 	public:
 		PowExpr(const ptrNode<T> &base, const ptrNode<T> &exp) : Node<T>({ base, exp }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.Pow(this->m_childs[0]->calc(v, alg), this->m_childs[1]->calc(v, alg)); };
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { 
+            return alg.Pow(this->m_childs[0]->calc(alg, map_iterator), 
+                           this->m_childs[0]->IsVarInTree(),
+                           this->m_childs[1]->calc(alg, map_iterator),
+                           this->m_childs[1]->IsVarInTree()); };
 		std::ostream& prn(std::ostream & out) const { return out << "pow(" << *this->m_childs[0] << "," << *this->m_childs[1] << ")"; }
 	};
 
@@ -230,7 +257,7 @@ namespace expression {
 	{
 	public:
 		Abs(const ptrNode<T> &node) : Node<T>({ node }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.Abs(this->m_childs[0]->calc(v, alg)); };
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.Abs(this->m_childs[0]->calc(alg, map_iterator)); };
 		std::ostream& prn(std::ostream & out) const { return out << "abs(" << *this->m_childs[0] << ")"; }
 	};
 
@@ -239,7 +266,7 @@ namespace expression {
 	{
 	public:
 		Ln(const ptrNode<T> &node) : Node<T>({ node }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.Ln(this->m_childs[0]->calc(v, alg)); };
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.Ln(this->m_childs[0]->calc(alg, map_iterator)); };
 		std::ostream& prn(std::ostream & out) const { return out << "ln(" << *this->m_childs[0] << ")"; }
 	};
 
@@ -247,10 +274,10 @@ namespace expression {
 	class Log : public Node<T>
 	{
 	private:
-		double base;
+		const double base;
 	public:
 		Log(const ptrNode<T> &node, double b) : Node<T>({ node }), base(b) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.Log(this->m_childs[0]->calc(v, alg), base); };
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.Log(this->m_childs[0]->calc(alg, map_iterator), base); };
 		std::ostream& prn(std::ostream & out) const { return out << "log(" << *this->m_childs[0] << "," << base << ")"; }
 	};
 
@@ -259,7 +286,7 @@ namespace expression {
 	{
 	public:
 		Min(const ptrNode<T> &lv, const ptrNode<T> &rv) : Node<T>({ lv,  rv }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.Min(this->m_childs[0]->calc(v, alg), this->m_childs[1]->calc(v, alg)); };
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.Min(this->m_childs[0]->calc(alg, map_iterator), this->m_childs[1]->calc(alg, map_iterator)); };
 		std::ostream& prn(std::ostream & out) const { return out << "min(" << *this->m_childs[0] << "," << *this->m_childs[1] << ")"; }
 	};
 
@@ -268,40 +295,56 @@ namespace expression {
 	{
 	public:
 		Max(const ptrNode<T> &lv, const ptrNode<T> &rv) : Node<T>({ lv,  rv }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) { return alg.Max(this->m_childs[0]->calc(v, alg), this->m_childs[1]->calc(v, alg)); };
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const { return alg.Max(this->m_childs[0]->calc(alg, map_iterator), this->m_childs[1]->calc(alg, map_iterator)); };
 		std::ostream& prn(std::ostream & out) const { return out << "max(" << *this->m_childs[0] << "," << *this->m_childs[1] << ")"; }
 	};
+
+	template <class T> class IfTrue;
 
 	template <class T>
 	class ConditionNode : public Node<T>
 	{
 	private:
-		Conditions condition;
-		IntervalBool result;
+		const Conditions condition;
 	public:
 		ConditionNode(Conditions cond, const ptrNode<T> &lv, const ptrNode<T> &rv) : condition(cond), Node<T>({ lv,  rv }) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) 
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const 
 		{ 
 			throw "Invalid operation in ConditionNode.";
 		}
-		IntervalBool calcCondition(const std::vector<T> &v, const Algorithm<T> & alg)
+		IntervalBool calcCondition(const Algorithm<T> & alg, MapIterator &map_iterator) const
 		{
-			return alg.Condition(condition, this->m_childs[0]->calc(v, alg), this->m_childs[1]->calc(v, alg));
+			return alg.Condition(condition, this->m_childs[0]->calc(alg, map_iterator), this->m_childs[1]->calc(alg, map_iterator));
 		}
 		std::ostream& prn(std::ostream & out) const { return out << " " << *this->m_childs[0] << condition << *this->m_childs[1] << " "; }
+		Conditions getCondition() { return condition; }
+		friend class IfTrue<T>;
 	};
 
 	template <class T>
 	class IfTrue : public Node<T>
 	{
 	private:
-		ptrCNode<T> conditionNode;
+		const ptrCNode<T> conditionNode;
 	public:
 		IfTrue(const ptrCNode<T> &cond, const ptrNode<T> &lv, const ptrNode<T> &rv) : conditionNode(cond), Node<T>({ lv,  rv }) {}
 
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg)
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const
 		{
-			return alg.IfTrue(conditionNode->calcCondition(v, alg), this->m_childs[0]->calc(v, alg), this->m_childs[1]->calc(v, alg));
+			IntervalBool condition = conditionNode->calcCondition(alg, map_iterator);
+			auto pVar = std::dynamic_pointer_cast<Var<T>>(conditionNode->m_childs[0]);
+			auto pCnst = std::dynamic_pointer_cast<Const<T>>(conditionNode->m_childs[1]);
+			if(condition == IntervalBool::Intermadiate && pVar && pCnst)
+			{
+				Conditions cond = conditionNode->getCondition();
+				int index = pVar->getIndex();
+				double cnst = pCnst->getConst();
+				auto vPtrAlg = alg.GetNewAlgorithm(cond, index, cnst);
+				return alg.IfTrue(condition, this->m_childs[0]->calc(*vPtrAlg[0], map_iterator), this->m_childs[1]->calc(*vPtrAlg[1], map_iterator));
+			}
+			else
+				return alg.IfTrue(condition, this->m_childs[0]->calc(alg, map_iterator), this->m_childs[1]->calc(alg, map_iterator));
+			
 		}
 		std::ostream& prn(std::ostream & out) const { return out << "ifThen(" << *conditionNode << " , " << *this->m_childs[0] << " , " << *this->m_childs[1] << ")"; }
 	};
@@ -316,40 +359,54 @@ namespace expression {
 	class Iterator
 	{
 	public:
-		Iterator(int start, int end) : startIterator(new int(start)), endIterator(new int(end)), current(new int(start))
+		Iterator(int start, int end) : startIterator(start), endIterator(end)
 		{
+			uid = Utils::getUid();
 		}
-		int Start() const { return *startIterator; }
-		int End() const { return *endIterator; }
-		int Current() const { return *current; }
-		bool CanIterate() const { return *current <= *endIterator; }
-		void Next() { if (CanIterate()) (*current)++;}
-		void Reset() { *current = *startIterator; }
-		template <class T>
+		int Start() const { return startIterator; }
+		int End() const { return endIterator; }
+		int Uid() const { return uid; }		
 		/**
 		* Allows to conver iterator to expression
 		* @return expression
 		*/
+		template <class T>
 		operator Expr<T>() const
 		{
 			ptrNode<T> pNode(new IteratorNode<T>(*this));
 			return Expr<T>(pNode);
 		}
 	private:
-		std::shared_ptr<int> startIterator;
-		std::shared_ptr<int> endIterator;
-		std::shared_ptr<int> current;
+		int startIterator;
+		int endIterator;
+		int uid;
+	};
+
+	class MapIterator {
+	private :
+	    	std::unordered_map<int,int> map_iterator;
+	public:
+		int Current(const Iterator &i) {
+			if(map_iterator.find(i.Uid())==map_iterator.end())
+				Reset(i);	 
+			return map_iterator[i.Uid()]; 
+		}
+		bool CanIterate(const Iterator &i) { return map_iterator[i.Uid()] <= i.End(); }
+		void Next(const Iterator &i) { map_iterator[i.Uid()]++; }
+		void Reset(const Iterator &i) { map_iterator[i.Uid()] = i.Start(); }
 	};
 
 	template <class T>
 	class IteratorNode : public Node<T>
 	{
-		Iterator iterator;
+		const Iterator i;
 	public:
-		IteratorNode(const Iterator &i) : iterator(i) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg)
-		{
-			return iterator.Current();
+		IteratorNode(const Iterator &it) : i(it) {}
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const
+		{			
+			int index = map_iterator.Current(i);
+            		return alg.CreateConst(index);
+			
 		}
 		std::ostream& prn(std::ostream & out) const { return out << "i"; }
 	};
@@ -357,41 +414,44 @@ namespace expression {
 	template <class T>
 	class Index : public Node<T>
 	{
-		Iterator iterator;
+		const Iterator i;
 	public:
-		Index(const Iterator &i) : iterator(i) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg)
+		Index(const Iterator &it) : i(it) {}
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const
 		{
-			int index = iterator.Current();
-			return v[index];
+			int index = map_iterator.Current(i);
+			return alg.CreateVar(index);
 		}
+        	bool IsVar() const { return true; }
 		std::ostream& prn(std::ostream & out) const { return out << "x[i]"; };
 	};
 
 	template <class T>
 	class CalcIndex : public Node<T>
 	{
-		std::function<int()> func;
+		const std::function<int()> func;
 	public:
 		CalcIndex(const std::function<int()> &f) : func(f) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg)
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const
 		{
-			return v[func()];
+			return alg.CreateVar(func());
 		}
+        	bool IsVar() const { return true; }
 		std::ostream& prn(std::ostream & out) const { return out << "x[calc i]"; };
 	};
 
 	template <class T>
 	class ExprIndex : public Node<T>
 	{
-		Expr<T> expr;
+		const Expr<T> expr;
 	public:
 		ExprIndex(const Expr<T>& e) : expr(e) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg)
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const
 		{
-			size_t index = (size_t)((double)expr.calc(v, alg));
-			return v[index];
+			size_t index = (size_t)((double)expr.node->calc(alg, map_iterator));
+			return alg.CreateVar(index);
 		}
+        	bool IsVar() const { return true; }
 		std::ostream& prn(std::ostream & out) const { return out << "x[" << expr << "]"; };
 	};
 
@@ -399,16 +459,16 @@ namespace expression {
 	class CycleSum : public Node<T>
 	{
 	private:
-		Iterator iterator;
+		const Iterator i;
 	public:
-		CycleSum(const ptrNode<T> &node, const Iterator &i) : Node<T>({ node }), iterator(i) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) {
-			T result = T();
-			iterator.Reset();
-			while (iterator.CanIterate())
+		CycleSum(const ptrNode<T> &node, const Iterator &it) : Node<T>({ node }), i(it) {}
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const {
+            		T result = alg.CreateConst(0.0);
+			map_iterator.Reset(i);
+			while (map_iterator.CanIterate(i))
 			{
-				result = alg.Plus(result, this->m_childs[0]->calc(v, alg));
-				iterator.Next();
+				result = alg.Plus(result, this->m_childs[0]->calc(alg, map_iterator));
+				map_iterator.Next(i);
 			}
 			return result;
 		};
@@ -419,25 +479,25 @@ namespace expression {
 	class CycleMul : public Node<T>
 	{
 	private:
-		Iterator iterator;
+		const Iterator i;
 	public:
-		CycleMul(const ptrNode<T> &node, const Iterator &i) : Node<T>({ node }), iterator(i) {}
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) {
-			T result = 1.0;
-			iterator.Reset();
-			if (!iterator.CanIterate())
-				return T();
-			while (iterator.CanIterate())
+		CycleMul(const ptrNode<T> &node, const Iterator &it) : Node<T>({ node }), i(it) {}
+		T calc(const Algorithm<T> & alg, MapIterator &map_iterator) const {		
+			T result = alg.CreateConst(1.0);
+			map_iterator.Reset(i);
+			if (!map_iterator.CanIterate(i))
+				return alg.CreateConst(0.0);
+			while (map_iterator.CanIterate(i))
 			{
-				result = alg.Mul(result, this->m_childs[0]->calc(v, alg));
-				iterator.Next();
+				result = alg.Mul(result, this->m_childs[0]->calc(alg, map_iterator));
+				map_iterator.Next(i);
 			}
 			return result;
 		};
 		std::ostream& prn(std::ostream & out) const { return out << "loopMul(" << *this->m_childs[0] << ",i)"; }
 	};
 
-}
+}}
 
 #endif /* NODE__HPP */
 

@@ -7,7 +7,13 @@
 #include <math.h>
 #include "node.hpp"
 #include "algorithm.hpp"
+#include "algder.hpp"
+#include "derivatives/valder.hpp"
+#include "derivatives/intervalder.hpp"
 
+using namespace snowgoose::derivative;
+
+namespace snowgoose {
 namespace expression {
 
 	/**
@@ -305,7 +311,7 @@ namespace expression {
 		* @param alg is algorithm. It allows to calculate either value of function or interval estimation of function.
 		* @return real number or interval
 		*/
-		T calc(const std::vector<T> &v, const Algorithm<T> & alg) const;
+		T calc(const Algorithm<T> & alg) const;
 		/**
 		* Output the expression
 		* @param out is output stream
@@ -314,6 +320,7 @@ namespace expression {
 		*/
 		template <class T2> friend std::ostream& operator<<(std::ostream & out, const Expr<T2>& v);
 		friend class Iterator;
+		template <class T3> friend class ExprIndex;
 	private:
 		/**
 		* It is root of tree of the expression
@@ -540,9 +547,30 @@ namespace expression {
 		return Expr<T>(ptrNode<T>(new CycleMul<T>(value.node, i)));
 	}
 
-	template <class T> T Expr<T>::calc(const std::vector<T> &v, const Algorithm<T> & alg) const
+	template <class T> T Expr<T>::calc(const Algorithm<T> & alg) const
 	{
-		return node->calc(v, alg);
+		MapIterator map_iterator;
+		return node->calc(alg, map_iterator);
+	}
+
+	template <class T> T calcFunc(const Expr<T>& exp, const std::vector<T>& point)
+	{
+		return exp.calc(FuncAlg<T>(point));
+	}
+
+        template <class T> Interval<T> calcInterval(const Expr<Interval<T>>& exp, const std::vector<Interval<T>>& box)
+        {
+		return exp.calc(InterEvalAlg<T>(box));
+        }
+
+	template <class T> ValDer<T> calcGrad(const Expr<ValDer<T>>& exp, const std::vector<T>& point)
+	{
+		return exp.calc(ValDerAlg<T>(point));
+	}
+
+	template <class T> IntervalDer<T> calcIntervalGrad(const Expr<IntervalDer<T>>& exp, const std::vector<Interval<T>>& box)
+	{
+		return exp.calc(IntervalDerAlg<T>(box));
 	}
 
 	template <class T> std::ostream& operator<<(std::ostream & out, const Expr<T>& v)
@@ -550,6 +578,6 @@ namespace expression {
 		return out << *v.node;
 	}
 }
-
+}
 
 #endif /* EXPR__HPP */

@@ -16,13 +16,16 @@
 
 #include <iostream> 
 #include <limits>
+#define _USE_MATH_DEFINES
 #include <cmath>
 #include <exception>
 #include <memory>
 #include <algorithm> 
 #include <limits>
+#include "common/utilmacro.hpp"
 #include "enums.h"
 
+namespace snowgoose {
   namespace interval {
 
 	template<class T> class Interval;
@@ -125,13 +128,13 @@
 			*/
 			IntervalBool operator <= (const Interval &y) const;
 			/**
-			* Is left interval less then or equal to the right number
+			* Is left interval less then or equals to the right number
 			* @param y is right number
 			* @return IntervalBool
 			*/
 			IntervalBool operator <= (T y) const;
 			/**
-			* Is left interval more then or equal to the right interval
+			* Is left interval more then or equals to the right interval
 			* @param y is right number
 			* @return IntervalBool
 			*/
@@ -142,6 +145,30 @@
 			* @return IntervalBool
 			*/
 			IntervalBool operator >= (T y) const;
+            /**
+			* Is left interval equals to the right interval
+			* @param y is right number
+			* @return IntervalBool
+			*/
+			IntervalBool operator == (const Interval &y) const;
+			/**
+			* Is left interval equals to the right number
+			* @param y is right number
+			* @return IntervalBool
+			*/
+			IntervalBool operator == (T y) const;
+            /**
+			* Is left interval doesn't equal to the right interval
+			* @param y is right number
+			* @return IntervalBool
+			*/
+			IntervalBool operator != (const Interval &y) const;
+			/**
+			* Is left interval doesn't equal to the right number
+			* @param y is right number
+			* @return IntervalBool
+			*/
+			IntervalBool operator != (T y) const;
 			/**
 			* Is left number less than right interval
 			* @param x is left number
@@ -394,8 +421,8 @@
 				return (*this) ^ y.m_lb;
 			Interval a = (*this) ^ y.m_lb;
 			Interval b = (*this) ^ y.m_rb;
-			T lb = std::min(a.m_lb, b.m_lb);
-			T rb = std::max(a.m_rb, b.m_rb);
+			T lb = SGMIN(a.m_lb, b.m_lb);
+			T rb = SGMAX(a.m_rb, b.m_rb);
 			return Interval(lb, rb);
 		}
 		template<class T> Interval<T> Interval<T>::operator*(const Interval &y) const
@@ -406,16 +433,16 @@
 			rb = t1;
 
 			t2 = m_lb * y.m_rb;
-			lb = std::min(lb, t2);
-			rb = std::max(rb, t2);
+			lb = SGMIN(lb, t2);
+			rb = SGMAX(rb, t2);
 
 			t3 = m_rb * y.m_lb;
-			lb = std::min(lb, t3);
-			rb = std::max(rb, t3);
+			lb = SGMIN(lb, t3);
+			rb = SGMAX(rb, t3);
 
 			t4 = m_rb * y.m_rb;
-			lb = std::min(lb, t4);
-			rb = std::max(rb, t4);
+			lb = SGMIN(lb, t4);
+			rb = SGMAX(rb, t4);
 
 			return Interval(lb, rb);
 		}
@@ -430,16 +457,16 @@
 			rb = t1;
 
 			t2 = m_lb / y.m_rb;
-			lb = std::min(lb, t2);
-			rb = std::max(rb, t2);
+			lb = SGMIN(lb, t2);
+			rb = SGMAX(rb, t2);
 
 			t3 = m_rb / y.m_lb;
-			lb = std::min(lb, t3);
-			rb = std::max(rb, t3);
+			lb = SGMIN(lb, t3);
+			rb = SGMAX(rb, t3);
 
 			t4 = m_rb / y.m_rb;
-			lb = std::min(lb, t4);
-			rb = std::max(rb, t4);
+			lb = SGMIN(lb, t4);
+			rb = SGMAX(rb, t4);
 
 			return Interval(lb, rb);
 		}
@@ -454,6 +481,10 @@
 		template<class T> IntervalBool operator <= (T x, const Interval<T> &y) { return x <= y.m_lb ? IntervalBool::True : x >= y.m_rb ? IntervalBool::False : IntervalBool::Intermadiate; }
 		template<class T> IntervalBool Interval<T>::operator >= (const Interval &y) const { return y <= (*this); }
 		template<class T> IntervalBool Interval<T>::operator >= (T y) const { return y <= (*this); }
+        template<class T> IntervalBool Interval<T>::operator == (const Interval &y) const { return m_lb == y.m_lb && m_rb == y.m_rb ? IntervalBool::True : IntervalBool::False; }
+		template<class T> IntervalBool Interval<T>::operator == (T y) const { return m_lb == y && m_rb == y ? IntervalBool::True : IntervalBool::False; }
+        template<class T> IntervalBool Interval<T>::operator != (const Interval &y) const { return m_lb != y.m_lb || m_rb != y.m_rb ? IntervalBool::True : IntervalBool::False; }
+		template<class T> IntervalBool Interval<T>::operator != (T y) const { return m_lb != y || m_rb != y ? IntervalBool::True : IntervalBool::False; }
 		template<class T> IntervalBool operator >= (T x, const Interval<T> &y) { return y <= x; }
 
 		template<class T> Interval<T> min(const IL<T>& list)
@@ -501,8 +532,8 @@
 				return Interval<T>(-std::numeric_limits<T>::infinity(), std::log(x.m_rb));
 			T a = std::log(x.m_lb);
 			T b = std::log(x.m_rb);
-			T lb = std::min(a, b);
-			T rb = std::max(a, b);
+			T lb = SGMIN(a, b);
+			T rb = SGMAX(a, b);
 			return Interval<T>(lb, rb);
 		}
 		template<class T> Interval<T> log(const Interval<T> &x, double base)
@@ -515,8 +546,8 @@
 				return Interval<T>(-std::numeric_limits<T>::infinity(), std::log(x.m_rb) / std::log(base));
 			T a = std::log(x.m_lb) / std::log(base);
 			T b = std::log(x.m_rb) / std::log(base);
-			T lb = std::min(a, b);
-			T rb = std::max(a, b);
+			T lb = SGMIN(a, b);
+			T rb = SGMAX(a, b);
 			return Interval<T>(lb, rb);
 		}
 		template<class T> Interval<T> ifThen(IntervalBool ib, const Interval<T> &x, const Interval<T> &y)
@@ -526,7 +557,7 @@
 			else if (ib == IntervalBool::False)
 				return y;
 			else
-				return Interval<T>(std::min(x.m_lb, y.m_lb), std::max(y.m_rb, y.m_rb));
+				return Interval<T>(SGMIN(x.m_lb, y.m_lb), SGMAX(x.m_rb, y.m_rb));
 		}
 		template<class T> std::ostream& operator<<(std::ostream & out, const Interval<T> x)
 		{
@@ -554,11 +585,11 @@
 			if (p2)
 				rb = 1.;
 			else
-				rb = std::max(std::sin(x.m_lb), std::sin(x.m_rb));
+				rb = SGMAX(std::sin(x.m_lb), std::sin(x.m_rb));
 			if (p32)
 				lb = -1.;
 			else
-				lb = std::min(std::sin(x.m_lb), std::sin(x.m_rb));
+				lb = SGMIN(std::sin(x.m_lb), std::sin(x.m_rb));
 
 			return Interval<T>(lb, rb);
 		}
@@ -640,8 +671,8 @@
 		{
 			T t1 = std::exp(x.m_lb);
 			T t2 = std::exp(x.m_rb);
-			T lb = std::min(t1, t2);
-			T rb = std::max(t1, t2);
+			T lb = SGMIN(t1, t2);
+			T rb = SGMAX(t1, t2);
 			return Interval<T>(lb, rb);
 		}
 		template<class T> Interval<T> sqrt(const Interval<T> &x)
@@ -652,16 +683,16 @@
 				return Interval<T>(0.0, std::sqrt(x.m_rb));
 			T a = std::sqrt(x.m_lb);
 			T b = std::sqrt(x.m_rb);
-			T lb = std::min(a, b);
-			T rb = std::max(a, b);
+			T lb = SGMIN(a, b);
+			T rb = SGMAX(a, b);
 			return Interval<T>(lb, rb);
 		}
 		template<class T> Interval<T> abs(const Interval<T> &x)
 		{
 			T t1 = std::abs(x.m_lb);
 			T t2 = std::abs(x.m_rb);
-			T lb = (std::min(x.m_lb, x.m_rb) <= 0.0 && std::max(x.m_lb, x.m_rb) >= 0) ? 0.0 : std::min(t1, t2);
-			T rb = std::max(t1, t2);
+			T lb = (SGMIN(x.m_lb, x.m_rb) <= 0.0 && SGMAX(x.m_lb, x.m_rb) >= 0) ? 0.0 : SGMIN(t1, t2);
+			T rb = SGMAX(t1, t2);
 			return Interval<T>(lb, rb);
 		}
 		template<class T> Interval<T> Interval<T>::pow(unsigned int n) const
@@ -679,12 +710,12 @@
 				if ((m_lb <= 0.0) && (m_rb >= 0.0))
 					lb = 0.0;
 				else
-					lb = std::min(t1, t2);
-				rb = std::max(t1, t2);
+					lb = SGMIN(t1, t2);
+				rb = SGMAX(t1, t2);
 			}
 			return Interval<T>(lb, rb);
 		}       
     }
-
+}
 
 #endif /* INTERVAL__HPP */
