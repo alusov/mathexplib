@@ -1,6 +1,6 @@
 ROOT = ../
-BINS = tutorial.exe tutorialgrad.exe
-TESTS = tutorial.exe tutorialgrad.exe
+BINS = tutorial.exe tutorialgrad.exe tutorialbnb.exe
+TESTS = tutorial.exe tutorialgrad.exe tutorialbnb.exe
 
 
 include $(ROOT)all.inc
