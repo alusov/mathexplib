@@ -561,7 +561,7 @@ namespace snowgoose {
 		}
 		template<class T> std::ostream& operator<<(std::ostream & out, const Interval<T> x)
 		{
-			return std::cout << "lb: " << x.m_lb << " rb: " << x.m_rb << '\n';
+			return out << "lb: " << x.m_lb << " rb: " << x.m_rb << '\n';
 		}
 		template<class T> Interval<T> sin(const Interval<T> &x)
 		{
